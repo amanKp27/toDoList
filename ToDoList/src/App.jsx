@@ -119,7 +119,7 @@ function App() {
           My Todo List
         </h1>
         <p className='text-center text-gray-600 mb-6'>
-          0 of 0 tasks completed
+          {completedCount} of {todos.length} tasks completed
         </p>
         <form onSubmit={handleAddTask} className='flex flex-col sm:flex-row gap-3 mb-8'>
           <input 
