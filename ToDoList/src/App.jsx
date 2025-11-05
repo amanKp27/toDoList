@@ -57,10 +57,19 @@ function formatDate(dateString){
   }
 }
 
+function getLocalISODate(date = new Date()) {
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function App() {
   const[todos,setTodos] = useStickyState([],'todos');
   const[newTask,setNewTask] = useState("");
-  const[newDate,setNewDate] = useState(new Date().toISOString().split('T')[0]);
+  const[newDate,setNewDate] = useState(getLocalISODate());
+  const[editingId,setEditingId] = useState(null);
+  const[editText,setEditText] = useState("");
 
   const handleAddTask = (e) => {
     e.preventDefault();
@@ -91,6 +100,40 @@ function App() {
     setTodos(todos.filter(todo=>todo.id!==id));
   };
 
+  const handleStartEdit = (todo) => {
+    setEditingId(todo.id);
+    setEditText(todo.text);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditText("");
+  };
+
+  const handleSaveEdit = () => {
+    if(editText.trim() === ""){
+      handleCancelEdit();
+      return;
+    }
+
+    setTodos(
+      todos.map(todo =>
+        todo.id === editingId ? { ...todo,text:editText.trim() } : todo
+      )
+    );
+
+    handleCancelEdit();
+  };
+
+  const handleEditInputKeyDown = (e) => {
+    if(e.key === 'Enter'){
+      handleSaveEdit();
+    }
+    else if (e.key === 'Escape'){
+      handleCancelEdit();
+    }
+  };
+
   const completedCount = todos.filter(todo => todo.completed).length;
 
   const groupedTodos = useMemo(() => {
@@ -111,6 +154,38 @@ function App() {
 
     return { groups,sortedDates };
   },[todos]);
+
+  useEffect(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayISO = getLocalISODate(today);
+
+    let tasksUpdated = false;
+    console.log("Checking for overdue tasks...");
+
+    const updatedTodos = todos.map(todo => {
+      if (todo.completed) {
+        return todo;
+      }
+
+      const taskDate = new Date(todo.date + 'T00:00:00');
+
+      if (!todo.date || isNaN(taskDate.getTime()) || taskDate < today) {
+        tasksUpdated = true;
+        console.log(`Updating task "${todo.text}" from ${todo.date} to ${todayISO}`);
+        return { ...todo, date: todayISO };
+      }
+
+      return todo;
+    });
+
+    if (tasksUpdated) {
+      console.log("Found tasks to update. Setting new state.");
+      setTodos(updatedTodos);
+    } else {
+      console.log("No tasks needed updating.");
+    }
+  },[]);
 
   return (
     <main className='min-h-screen w-full bg-slate-100 text-gray-900 flex justify-center p-4 font-sans'>
@@ -158,8 +233,9 @@ function App() {
                     key={todo.id}
                     className='flex items-center justify-between bg-white rounded-lg p-4 shadow-sm border border-gray-100'
                   >
-                    <div className='flex items-center gap-3 cursor-pointer' onClick={() => handleToggleComplete(todo.id)}>
+                    <div className='flex items-center gap-3 grow'>
                       <button
+                        onClick={() => handleToggleComplete(todo.id)}
                         aria-label='Toggle Complete'
                         className = {`flex items-center justify-center w-6 h-6 rounded-full border-2 
                                     ${todo.completed ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-400'}
@@ -167,11 +243,25 @@ function App() {
                       >
                         {todo.completed && <CheckIcon />}
                       </button>
-                      <span
-                        className={`text-lg ${todo.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}
-                      >
-                        {todo.text}
-                      </span>
+                      {editingId === todo.id ? (
+                        <input
+                          type="text"
+                          value={editText}
+                          onChange={(e) => setEditText(e.target.value)}
+                          onKeyDown={handleEditInputKeyDown}
+                          onBlur={handleSaveEdit} 
+                          autoFocus 
+                          className="text-lg text-gray-800 bg-gray-100 border border-indigo-300 rounded-md px-2 py-0.5 w-full"
+                        />
+                      ) : (
+                        <span
+                          onClick={() => handleStartEdit(todo)} 
+                          className={`text-lg cursor-pointer ${todo.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}
+                        >
+                          {todo.text}
+                        </span>
+                      )}
+
                     </div>
                     <button
                       onClick={() => handleDeleteTask(todo.id)}
